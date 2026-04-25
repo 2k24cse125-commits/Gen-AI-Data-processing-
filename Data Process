@@ -1,0 +1,91 @@
+import pandas as pd
+import numpy as np
+import os
+from sklearn.preprocessing import StandardScaler
+
+# -------------------------------
+# Load Excel Dataset
+# -------------------------------
+print("Files:", os.listdir())   # check file exists
+df = pd.read_excel("14 Marketing Campaigns.xlsx")
+
+# -------------------------------
+# 1. Understanding Dataset
+# -------------------------------
+print("Shape:", df.shape)
+print(df.info())
+print(df.head())
+
+# -------------------------------
+# 2. Handle Missing Values
+# -------------------------------
+num_cols = df.select_dtypes(include=np.number).columns
+df[num_cols] = df[num_cols].fillna(df[num_cols].mean())
+
+cat_cols = df.select_dtypes(include='object').columns
+for col in cat_cols:
+    df[col] = df[col].fillna(df[col].mode()[0])
+
+# -------------------------------
+# 3. Remove Duplicates
+# -------------------------------
+df = df.drop_duplicates()
+
+# -------------------------------
+# 4. Convert Date Columns
+# -------------------------------
+df['Start Date'] = pd.to_datetime(df['Start Date'], errors='coerce')
+df['End Date'] = pd.to_datetime(df['End Date'], errors='coerce')
+
+df['Duration'] = (df['End Date'] - df['Start Date']).dt.days
+
+# -------------------------------
+# 5. Handle Skewness (BEFORE scaling)
+# -------------------------------
+num_cols = df.select_dtypes(include=np.number).columns
+
+for col in num_cols:
+    if df[col].skew() > 1:
+        df[col] = np.log1p(df[col])
+
+# -------------------------------
+# 6. Handle Outliers (IQR)
+# -------------------------------
+num_cols = df.select_dtypes(include=np.number).columns
+
+for col in num_cols:
+    Q1 = df[col].quantile(0.25)
+    Q3 = df[col].quantile(0.75)
+    IQR = Q3 - Q1
+
+    lower = Q1 - 1.5 * IQR
+    upper = Q3 + 1.5 * IQR
+
+    df = df[(df[col] >= lower) & (df[col] <= upper)]
+
+# -------------------------------
+# 7. Drop Irrelevant Columns
+# -------------------------------
+df = df.drop(columns=['Campaign ID', 'Start Date', 'End Date'], errors='ignore')
+
+# -------------------------------
+# 8. One-Hot Encoding
+# -------------------------------
+df = pd.get_dummies(df, columns=['Campaign Name', 'Channel'])
+
+# -------------------------------
+# 9. Feature Scaling
+# -------------------------------
+num_cols = df.select_dtypes(include=np.number).columns
+
+scaler = StandardScaler()
+df[num_cols] = scaler.fit_transform(df[num_cols])
+
+# -------------------------------
+# Final Output
+# -------------------------------
+print("Cleaned Data Shape:", df.shape)
+print(df.head())
+
+# Save cleaned dataset
+df.to_csv("cleaned_marketing_campaigns.csv", index=False)
